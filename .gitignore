@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
 
 # C extensions
 *.so
@@ -73,6 +74,8 @@ docs/_build/
 
 # PyBuilder
 target/
+
+.idea/
 
 # Jupyter Notebook
 .ipynb_checkpoints
