@@ -1,5 +1,9 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 
-import tushare as ts
+import tdx
+
+tdx.work()
+
+
 

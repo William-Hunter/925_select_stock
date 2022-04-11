@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 
+import tushare as ts
 
 pro = ts.pro_api('22c86de26f5dd8eab821fde40714b694b0753940024109152c74e854')
 

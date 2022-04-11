@@ -24,4 +24,13 @@
 然后有接口能够获取一只股票的市盈率、流通股本、涨幅、跳空等数据
 
 
+如果包下载不了，可以把翻墙关了试试
+
+
+```
+pip3 install XXXX -i http://pypi.douban.com/simple/ --trusted-host=pypi.douban.com/simple
+
+pip3 install pytdx -i http://pypi.douban.com/simple/ --trusted-host=pypi.douban.com/simple
+
+```
 
