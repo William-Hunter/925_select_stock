@@ -77,6 +77,7 @@ def displayStock(stocklst):
 # 0:长代号 1:短代号 2:股票名 3: 4: 5: 6:  9:涨跌幅 11:量比
 def washData(jsoon):
     stocklst = []
+    # TODO 计算耗时代码段
     for line in jsoon:      # TODO 异步执行，并发的
         stock = {}
         name = line[2]
@@ -111,7 +112,7 @@ def washData(jsoon):
         stocklst.append(stock)
 
         call_sleep = config.get()['strategy']['call_sleep']
-        if 0 < call_sleep:  # 睡眠时间
+        if 0 < call_sleep:              # 睡眠时间
             call_sleep=call_sleep / 1000
             time.sleep(call_sleep)
             print("sleep\t",call_sleep)
@@ -120,14 +121,21 @@ def washData(jsoon):
 
 
 def htmlFormat(stocklst):
-    html = '<table border="1">'
+    codes=[]
+    html = '拉到最下面可以复制股票代码<br/>'
+    html=html+'<table border="1">'
     html = html + '<tr><th>#</th><th>短代号</th><th>股票名</th><th>涨跌幅</th><th>量比</th><th>流通股本</th><th>市盈率</th><th>长代号</th></tr>'
+
+    codezone="<br/>"
     index = 0
     for line in stocklst:
         index = index + 1
         html = html + '<tr><td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td><td>{5}</td><td>{6}</td><td>{7}</td></tr>'.format(
             index, line['code'], line['name'], line['gain'], line['vol'], line['stockbase'], line['PER'], line['lcode'])
+        codezone=codezone+line['code']+"<br/>"
+
     html = html + "</table>"
+    html=html+codezone
     print(html)
     return html
 
