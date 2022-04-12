@@ -25,7 +25,7 @@ def posts():
         'c': 's,ta,tm,sl,cot,cat,ape',
         'n': 'hqa',
         'o': 'cat,d',  # 排序规则
-        'p': '1060',  # 分页
+        'p': '10' + str(config.get()['strategy']['page']),  # 分页
         '_dc': getTimeStamp(),  # 时间戳
     }
     result = requests.get("http://q.jrjimg.cn/?q=cn|s|sa", params=payload)
@@ -77,7 +77,7 @@ def displayStock(stocklst):
 # 0:长代号 1:短代号 2:股票名 3: 4: 5: 6:  9:涨跌幅 11:量比
 def washData(jsoon):
     stocklst = []
-    for line in jsoon:
+    for line in jsoon:      # TODO 异步执行，并发的
         stock = {}
         name = line[2]
 
@@ -109,6 +109,13 @@ def washData(jsoon):
         stock['PER'] = PER
         stock['lcode'] = line[0]
         stocklst.append(stock)
+
+        call_sleep = config.get()['strategy']['call_sleep']
+        if 0 < call_sleep:  # 睡眠时间
+            call_sleep=call_sleep / 1000
+            time.sleep(call_sleep)
+            print("sleep\t",call_sleep)
+
     return stocklst
 
 
@@ -120,7 +127,7 @@ def htmlFormat(stocklst):
         index = index + 1
         html = html + '<tr><td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td><td>{5}</td><td>{6}</td><td>{7}</td></tr>'.format(
             index, line['code'], line['name'], line['gain'], line['vol'], line['stockbase'], line['PER'], line['lcode'])
-    html=html+"</table>"
+    html = html + "</table>"
     print(html)
     return html
 
@@ -137,8 +144,8 @@ def function():
         jsoon = cutIt(result)
         stocklst = washData(jsoon)
         # displayStock(stocklst)
-        html=htmlFormat(stocklst)#  格式化成HTML
-        mail_work.sendMail(mail_work.login(),config.get()['email']['receivers'],"每日竞价集合自动荐股",html)      #发送邮件
+        html = htmlFormat(stocklst)  # 格式化成HTML
+        mail_work.sendMail(mail_work.login(), config.get()['email']['receivers'], "每日竞价集合自动荐股", html)  # 发送邮件
 
     # TODO 按照我的 市盈率市净率条件过滤一遍
     else:
