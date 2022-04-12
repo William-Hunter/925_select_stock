@@ -1,18 +1,20 @@
-#!/usr/bin/python
 # -*- coding: UTF-8 -*-
+"""
+金融界爬虫获取的数据
+"""
 
 import requests
 import time
 import json
 import akshare_script
-
-DEBUG = False
+import config
+import mail_work
 
 
 # 时间戳函数
 def getTimeStamp():
     millis = int(round(time.time() * 1000))
-    print("时间戳:", millis)
+    # print("时间戳:", millis)
     return millis
 
 
@@ -47,17 +49,15 @@ def cutIt(result):
 # 显示股票
 def displayStock(stocklst):
     TABFORMAT = ' \t|\t'
-
     print("#", end=TABFORMAT)
     print("短代号", end=TABFORMAT)
     print("股票名", end=TABFORMAT)
     print("涨跌幅", end=TABFORMAT)
     print("量比", end=TABFORMAT)
-    print("流通股本(万)", end=TABFORMAT)
+    print("流通股本", end=TABFORMAT)
     print("市盈率", end=TABFORMAT)
     print("长代号", end=TABFORMAT)
     print()
-
     index = 0
     for line in stocklst:
         # 打印数据
@@ -82,23 +82,23 @@ def washData(jsoon):
         name = line[2]
 
         gain = line[9]  # 涨幅过滤
-        if gain > 7:
-            if DEBUG:
-                print("涨幅过滤：", name)
+        if gain > config.get()['strategy']['gain-limit']:
+            if config.get()['DEBUG']:
+                print("涨幅过滤：%s %s" % (name, config.get()['strategy']['gain-limit']))
             continue
 
         code = line[1]
         akshare_script.getStockInfo(code)
         stockbase = akshare_script.getLiqudStockBase(code)
-        if stockbase > 10000000:  # 如果大于一千万，就过滤掉
-            if DEBUG:
-                print("流通股本过滤：", name)
+        if stockbase > config.get()['strategy']['stockbase-limit']:  # 如果大于一千万，就过滤掉
+            if config.get()['DEBUG']:
+                print("流通股本过滤：%s %s" % (name, config.get()['strategy']['stockbase-limit']))
             continue
 
         PER = line[14]
-        if PER > 500:  # 市盈率大于500
-            if DEBUG:
-                print("市盈率过滤：", name)
+        if PER > config.get()['strategy']['PER-limit']:  # 市盈率大于500
+            if config.get()['DEBUG']:
+                print("市盈率过滤：%s %s" % (name, config.get()['strategy']['PER-limit']))
             continue
 
         stock['code'] = code
@@ -108,23 +108,39 @@ def washData(jsoon):
         stock['stockbase'] = stockbase
         stock['PER'] = PER
         stock['lcode'] = line[0]
-
         stocklst.append(stock)
     return stocklst
 
 
+def htmlFormat(stocklst):
+    html = '<table border="1">'
+    html = html + '<tr><th>#</th><th>短代号</th><th>股票名</th><th>涨跌幅</th><th>量比</th><th>流通股本</th><th>市盈率</th><th>长代号</th></tr>'
+    index = 0
+    for line in stocklst:
+        index = index + 1
+        html = html + '<tr><td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td><td>{5}</td><td>{6}</td><td>{7}</td></tr>'.format(
+            index, line['code'], line['name'], line['gain'], line['vol'], line['stockbase'], line['PER'], line['lcode'])
+    html=html+"</table>"
+    print(html)
+    return html
+
+
 def function():
+    print("--------------------")
+    print("现在的时间是：%s，开始今天的荐股任务了" % (time.strftime('%Y/%m/%d %H:%M:%S')))
     result = posts()
     print(result.url)
     print(result.status_code)
     # print(result.text)
-    print("--------------------")
     data = result.text
     if 'HqData:' in data:
         jsoon = cutIt(result)
         stocklst = washData(jsoon)
-        displayStock(stocklst)
+        # displayStock(stocklst)
+        html=htmlFormat(stocklst)#  格式化成HTML
+        mail_work.sendMail(mail_work.login(),config.get()['email']['receivers'],"每日竞价集合自动荐股",html)      #发送邮件
+
+    # TODO 按照我的 市盈率市净率条件过滤一遍
     else:
         print("很遗憾，没有获取到数据")
-
     print("=====END==========")

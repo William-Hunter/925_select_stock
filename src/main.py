@@ -1,17 +1,18 @@
-#!/usr/bin/python
 # -*- coding: UTF-8 -*-
 
-import tdx
-import akshare_script
 import jinrongjie
 import time
+import config
+import mail_work
 
 T1 = time.time()
+config._init()
+
+
+# mail_work.sendMail(mail_work.login(),config.get()['email']['receivers'],"title","concont")
+
 
 jinrongjie.function()
-
-# akshare_script.getLiqudStockBase('000927')
-# tdx.work()
 
 
 T2 = time.time()

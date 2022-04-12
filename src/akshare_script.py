@@ -6,7 +6,7 @@ import akshare as ak
 def getLiqudStockBase(code):
     info = getStockInfo(code)
     basebase = info.values[7][1]
-    basebase = basebase / 10000
+    # basebase = basebase / 10000
     return basebase
 
 
