@@ -16,4 +16,4 @@ jinrongjie.function()
 
 
 T2 = time.time()
-print('程序运行时间:%s秒' % (round(T2 - T1, 2)))
+print('程序运行时间:%s秒' % (round(T2 - T1, 3)))

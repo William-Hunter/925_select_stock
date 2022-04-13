@@ -4,11 +4,14 @@
 """
 
 import requests
-import time
 import json
+import simplejson
 import akshare_script
 import config
 import mail_work
+import time
+import datetime
+import threading
 
 
 # 时间戳函数
@@ -20,7 +23,6 @@ def getTimeStamp():
 
 # 请求数据的函数
 def posts():
-    # c=s,ta,tm,sl,cot,cat,ape&n=hqa&o=cat,d&p=1060&_dc=1649728485102
     payload = {
         'c': 's,ta,tm,sl,cot,cat,ape',
         'n': 'hqa',
@@ -29,6 +31,11 @@ def posts():
         '_dc': getTimeStamp(),  # 时间戳
     }
     result = requests.get("http://q.jrjimg.cn/?q=cn|s|sa", params=payload)
+    if config.get()['DEBUG']:
+        print(result.url)
+        print(result.status_code)
+        print(result.text)
+
     return result
 
 
@@ -73,84 +80,122 @@ def displayStock(stocklst):
         print()
 
 
-# 友好显示数据的函数
-# 0:长代号 1:短代号 2:股票名 3: 4: 5: 6:  9:涨跌幅 11:量比
-def washData(jsoon):
-    stocklst = []
-    # TODO 计算耗时代码段
-    for line in jsoon:      # TODO 异步执行，并发的
-        stock = {}
-        name = line[2]
+def washStock(line, stockList):
+    """
+    清洗单个股票数据
+    :param line:
+    :return:
+    """
+    stock = {}
+    gain = line[9]  # 涨幅过滤
+    name = line[2]
+    code = line[1]
+    PER = line[14]
+    print("%s 开始洗数据 %s" % (name, datetime.datetime.now()))
 
-        gain = line[9]  # 涨幅过滤
-        if gain > config.get()['strategy']['gain-limit']:
-            if config.get()['DEBUG']:
-                print("涨幅过滤：%s %s" % (name, config.get()['strategy']['gain-limit']))
-            continue
+    if gain < 0:
+        if config.get()['DEBUG']:
+            print("涨幅为负过滤：%s %s" % (name, config.get()['strategy']['gain-limit']))
+        print("%s 洗数据完毕 %s" % (name, datetime.datetime.now()))
+        return None
+    elif gain > config.get()['strategy']['gain-limit']:
+        if config.get()['DEBUG']:
+            print("涨幅过滤：%s %s" % (name, config.get()['strategy']['gain-limit']))
+        print("%s 洗数据完毕 %s" % (name, datetime.datetime.now()))
+        return None
 
-        code = line[1]
-        akshare_script.getStockInfo(code)
-        stockbase = akshare_script.getLiqudStockBase(code)
-        if stockbase > config.get()['strategy']['stockbase-limit']:  # 如果大于一千万，就过滤掉
-            if config.get()['DEBUG']:
-                print("流通股本过滤：%s %s" % (name, config.get()['strategy']['stockbase-limit']))
-            continue
+    x1 = time.time()
+    loop = True  # 循环标记
+    while loop:
+        try:
+            stockbase = akshare_script.getLiqudStockBase(code)
+        except simplejson.errors.JSONDecodeError:
+            print("akshare查询结果有问题")
+        else:
+            loop = False
+            print("akshare查询完成")
+    print("跳出循环")
+    x2 = time.time()
+    print('%s 流通股本过滤运行时间: %s 毫秒' % (name, round((x2 - x1) * 1000, 2)))
 
-        PER = line[14]
-        if PER > config.get()['strategy']['PER-limit']:  # 市盈率大于500
-            if config.get()['DEBUG']:
-                print("市盈率过滤：%s %s" % (name, config.get()['strategy']['PER-limit']))
-            continue
+    if stockbase > config.get()['strategy']['stockbase-limit']:  # 如果大于一千万，就过滤掉
+        if config.get()['DEBUG']:
+            print("流通股本过滤：%s %s" % (name, config.get()['strategy']['stockbase-limit']))
+        print("%s 洗数据完毕 %s" % (name, datetime.datetime.now()))
+        return None
 
-        stock['code'] = code
-        stock['name'] = name
-        stock['gain'] = gain
-        stock['vol'] = line[11]
-        stock['stockbase'] = stockbase
-        stock['PER'] = PER
-        stock['lcode'] = line[0]
-        stocklst.append(stock)
+    if PER > config.get()['strategy']['PER-limit']:  # 市盈率大于500
+        if config.get()['DEBUG']:
+            print("市盈率过滤：%s %s" % (name, config.get()['strategy']['PER-limit']))
+        print("%s 洗数据完毕 %s" % (name, datetime.datetime.now()))
+        return None
 
-        call_sleep = config.get()['strategy']['call_sleep']
-        if 0 < call_sleep:              # 睡眠时间
-            call_sleep=call_sleep / 1000
-            time.sleep(call_sleep)
-            print("sleep\t",call_sleep)
+    stock['code'] = code
+    stock['name'] = name
+    stock['gain'] = gain
+    stock['vol'] = line[11]
+    stock['stockbase'] = stockbase
+    stock['PER'] = PER
+    stock['lcode'] = line[0]
+    print("%s 洗数据完毕 %s" % (name, datetime.datetime.now()))
 
-    return stocklst
+    stockList.append(stock)
+    # return stock
+
+
+def threadWashData(jsoon):
+    """
+    使用多线程方式去执行数据处理任务
+    :param jsoon:
+    :return:
+    """
+    processList = list()
+    stockList = list()
+    for line in jsoon:  # 分发任务
+        process = threading.Thread(target=washStock, args=(line, stockList))
+        processList.append(process)
+        print("分发任务%s" % (line[2]))
+    for process in processList:
+        process.start()
+    print("Start")
+    for process in processList:
+        process.join()
+    print("join")
+    return stockList
 
 
 def htmlFormat(stocklst):
-    codes=[]
+    """
+    将数据设置为html格式的String
+    :param stocklst:
+    :return:
+    """
     html = '拉到最下面可以复制股票代码<br/>'
-    html=html+'<table border="1">'
+    html = html + '<table border="1">'
     html = html + '<tr><th>#</th><th>短代号</th><th>股票名</th><th>涨跌幅</th><th>量比</th><th>流通股本</th><th>市盈率</th><th>长代号</th></tr>'
 
-    codezone="<br/>"
+    codezone = "<br/>"
     index = 0
     for line in stocklst:
         index = index + 1
         html = html + '<tr><td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td><td>{5}</td><td>{6}</td><td>{7}</td></tr>'.format(
             index, line['code'], line['name'], line['gain'], line['vol'], line['stockbase'], line['PER'], line['lcode'])
-        codezone=codezone+line['code']+"<br/>"
+        codezone = codezone + line['code'] + "<br/>"
 
     html = html + "</table>"
-    html=html+codezone
+    html = html + codezone
     print(html)
     return html
 
 
 def function():
     print("--------------------")
-    print("现在的时间是：%s，开始今天的荐股任务了" % (time.strftime('%Y/%m/%d %H:%M:%S')))
+    print("现在的时间是：%s，开始今天的荐股任务了" % (datetime.datetime.now()))
     result = posts()
-    print(result.url)
-    print(result.status_code)
-    # print(result.text)
     data = result.text
     if 'HqData:' in data:
         jsoon = cutIt(result)
-        stocklst = washData(jsoon)
+        stocklst = threadWashData(jsoon)
         # displayStock(stocklst)
         html = htmlFormat(stocklst)  # 格式化成HTML
         mail_work.sendMail(mail_work.login(), config.get()['email']['receivers'], "每日竞价集合自动荐股", html)  # 发送邮件
